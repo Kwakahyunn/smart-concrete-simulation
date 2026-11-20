@@ -128,7 +128,30 @@ function selectedSide(side){
   const group=state.orient==='vertical'?(side<0?'a':'b'):(side>0?'a':'b');
   return state.selection===group;
 }
-function drawGates(){for(const s of [-1,1])for(let j=0;j<5;j++){let t=portT[j];let active=state.stage===3&&state.progress>(j/5)*74&&(selectedSide(s));let x=active?24:17;line3([V(s*12,0,t),V(s*x,0,t)],active?'#f7b552':'#e2aa55',4);orb(V(s*x,0,t),3,active?'#ffb449':'#caab67')}}
+function drawGates(){
+  // Small sliding shutters: they open only after the descending resin front
+  // reaches the corresponding port. No rod extends out of the concrete.
+  const progress=state.stage===3?state.progress/100:0;
+  const front=110-progress*225;
+  for(const side of [-1,1])for(const z of portT){
+    const arrived=state.stage===3&&selectedSide(side)&&front<=z;
+    // The shutter slides a short distance parallel to the pipe, not radially outward.
+    const opening=arrived?Math.max(0,Math.min(1,(z-front)/12)):0;
+    const smooth=opening*opening*(3-2*opening);
+    const gateX=side*17;
+    // Fixed steel seat, visible as a compact dark opening.
+    line3([V(side*13.5,0,z-3.5),V(side*20,0,z-3.5)],'#425566',2.8,.92);
+    line3([V(side*13.5,0,z+3.5),V(side*20,0,z+3.5)],'#425566',2.8,.92);
+    // A short golden shutter slides upward by only 6 mm.
+    const shutterZ=z+smooth*6.2;
+    line3([V(gateX,-2.8,shutterZ),V(gateX,2.8,shutterZ)],'#e9c28a',4.5,.98);
+    orb(V(gateX,0,shutterZ),1.65,'#f2d4a5');
+    // Exposed internal-to-external resin passage (only after opening).
+    if(smooth>.08){
+      line3([V(side*10.2,0,z),V(side*18,0,z)],'#e58d3d',1.6+1.8*smooth,.9*smooth);
+    }
+  }
+}
 function drawCracks(){if(state.stage===0)return;const p=state.progress/100;for(const cr of cracks){let [s,j,k,pts]=[cr.s,cr.j,cr.k,cr.pts];const order=j*8+k;const reveal=state.stage===1?p*80:80; if(order>reveal)continue; const selected=selectedSide(s);let color=state.stage===1?(p>.35?'#46d7dc':'#657886'):(state.stage>=2?'#55cfd1':'#617789');if(state.stage===2){
   const proximity=1-Math.min(1,Math.abs(cr.pts[0][2]-(82-164*scanPosition()))/24);
   color=selected?(proximity>.05?'#b3fff1':'#69dfd6'):'#425867';
@@ -250,7 +273,7 @@ function drawFlow(){
 function render(){if(!cssW)return;ctx.clearRect(0,0,cssW,cssH);const grad=ctx.createRadialGradient(cssW*.55,cssH*.43,20,cssW*.55,cssH*.55,cssW*.68);grad.addColorStop(0,'#19304a');grad.addColorStop(1,'#081320');ctx.fillStyle=grad;ctx.fillRect(0,0,cssW,cssH);
 // The canvas draws a three-dimensional *projection* with orbit/zoom interaction;
 // no physical CFD and no polygon-accurate hidden-surface removal is implied.
-drawConcrete();drawTube();drawLeak();drawInspectionScan();drawCracks();drawGates();drawFlow();drawConnectors();
+drawConcrete();drawTube();drawLeak();drawInspectionScan();drawCracks();drawFlow();drawGates();drawConnectors();
 ctx.fillStyle='#8ca5b8';ctx.font='11px system-ui';ctx.textAlign='left';ctx.fillText(state.orient==='vertical'?'VERTICAL CONFIGURATION':'HORIZONTAL CONFIGURATION',19,cssH-17)
 }
 function animate(ts){const dt=Math.min(80,ts-last||16);last=ts;if(state.playing){state.progress=Math.min(100,state.progress+dt*(state.stage===2?.010:.018));if(state.stage===1){state.humidity=45+state.progress*.37;$('humidity').value=state.humidity}if(state.stage===3&&state.progress>=100)state.doneInjection=true;if(state.progress>=100){state.playing=false;notify('단계 재생이 완료되었습니다.')}updateUI();render()}requestAnimationFrame(animate)}
